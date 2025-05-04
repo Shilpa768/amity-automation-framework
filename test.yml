@@ -1,0 +1,64 @@
+name: CI Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: ["chrome", "firefox"]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'adopt'
+
+      - name: Install Maven
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y maven
+
+      - name: Install Browsers & Drivers
+        run: |
+          # Install Chrome
+          wget -qO - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
+          sudo apt-get update
+          sudo apt-get install -y google-chrome-stable
+
+          # Install Firefox
+          sudo apt-get install -y firefox
+
+          # Install geckodriver (for Firefox)
+          wget https://github.com/mozilla/geckodriver/releases/download/v0.35.0/geckodriver-v0.35.0-linux64.tar.gz
+          tar -xzf geckodriver-v0.35.0-linux64.tar.gz
+          sudo mv geckodriver /usr/local/bin/
+          sudo chmod +x /usr/local/bin/geckodriver
+
+      - name: Set Up Headless Display
+        run: |
+          sudo apt-get install -y xvfb
+          Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+
+      - name: Run Tests (Maven)
+        run: |
+          mvn clean test -Dbrowser=${{ matrix.browser }} -Dheadless=true
+
+      - name: Upload Reports & Screenshots
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: |
+            reports/
+            screenshots/
